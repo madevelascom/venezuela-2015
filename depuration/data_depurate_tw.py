@@ -12,15 +12,13 @@ from nltk.stem.snowball import SnowballStemmer
 import datetime
 import time
 from dateutil.parser import parse
-import dateutil.parser
 
 def get_fields_tw():
-    i = 0
     tw_file = open('../results/tweets_depurated.csv', 'w')
     tw_file_no_text = open('../results//tweets_depurated_noText.csv', 'w')
     tw_file_users = open('../results/tweets_users.csv', 'w')
-    cabecera = 'id_tweet,id_user,longitude,latitude,words,lang,timestamp_ms,n_retw,hashtags,dia,hora,isDay,isWeekDay\n'
-    cabecera_no_text = 'id_tweet,id_user_str,longitude,latitude,lang,timestamp_ms,n_retw,dia,hora,isDay,isWeekDay\n'
+    cabecera = 'id_tweet,id_user,longitude,latitude,words,timestamp_ms,n_retw,hashtags,dia,hora,isDay,isWeekDay,count,provincia\n'
+    cabecera_no_text = 'id_tweet,id_user_str,longitude,latitude,timestamp_ms,n_retw,dia,hora,isDay,isWeekDay,count\n'
     # Information about users is going to be taken care after
     # cabecera_users = 'id_tweet,id_user8, statuses_count, followers_count, friends_count, location, lang,  geo_enabled, favourites_count'
     tw_file.write(cabecera)
@@ -29,19 +27,18 @@ def get_fields_tw():
     # Information about users is going to be taken care after
     # tw_file_users.write(cabecera_users)
 
-    #Reemplazar por nombre archivo
     data = open('../data/venezuela_poblacion.json')
-    # Cada line es un objeto json
+
     for line in data:
         if (line.strip() != '\n'):
             hashtags = ''
             try:
                 tweet = json.loads(line.decode('utf-8'))
                 if tweet['coordinates']:
-                    print(tweet['text'])
                     longitude = str(tweet['coordinates']['coordinates'][0])
                     latitude = str(tweet['coordinates']['coordinates'][1])
                     texto = tweet['text']
+
                     texto = re.sub(r'@(.+?)\s+', '', texto)
                     texto = re.sub(r'@(.+?)\Z', '', texto)
                     texto = re.sub(r'#(.+?)\s+', '', texto)
@@ -51,45 +48,49 @@ def get_fields_tw():
                     texto = re.sub(r'jaja{1,}?', '', texto)
                     texto = re.sub(r'j{2,}?', '', texto)
                     texto = re.sub(r'jeje{1,}?', '', texto)
-                    content = texto
+                    content = normalization(texto)
 
-
-                    #Time information
+                    # Time information
                     t_timestamp = time.mktime(parse(tweet['created_at']).timetuple())
                     esdia = isDay(t_timestamp)
                     entresemana = isWeekDay(t_timestamp)
                     dia = str(day(t_timestamp))
                     hora = str(hour(t_timestamp))
 
-                    if ('id_str' in tweet['user']):
-                        user_id = str(tweet['user']['id_str'])
-                    else:
-                        user_id = str(tweet['user']['id'])
-                    #No devuelve tweet si está vacío tras normalizar y eliminar stopwords
-                    #No se esta aplicando Hunspell
-                    if (content != "" ):
-                        for h in tweet['entities']['hashtags']:
-                            hashtags = hashtags + '&' + h['text'].encode('ascii','ignore')
-                        if not hashtags:
-                            hashtags = '-'
-                        line = tweet['id']['$numberLong'] +','+tweet['id']['$numberLong']+','+user_id + ',' + longitude + ',' + latitude + ',' + content + ',' + tweet['lang']+','+ str(t_timestamp)+ ',' + str(tweet['retweet_count']) + ',' + hashtags + ','+dia+',' +hora+','+esdia+','+entresemana+','+'\n'
-                        tw_file.write(line.encode('utf-8'))
+                    # Country information
 
-                    line_noText = tweet['id']['$numberLong'] +','+tweet['id']['$numberLong']+','+user_id + ',' + longitude + ','  + latitude + ',' + tweet['lang']+','+ str(t_timestamp)+ ',' + str(tweet['retweet_count'])+','+dia+','+hora+','+esdia+','+entresemana+','+ '\n'
-                    tw_file_no_text.write(line_noText)
+                    if (is_ven(tweet) and has_province(tweet) and tweet['lang'] == 'es'):
+                        if ('id_str' in tweet['user']):
+                            user_id = str(tweet['user']['id_str'])
+                        else:
+                            user_id = str(tweet['user']['id'])
 
-                    # Information about users is going to be taken care after
-                    """line_users = tweet['id']['$numberLong'] +','+tweet['id']['$numberLong']+','+user_id + ','+str(tweet['user']['statuses_count'])+','+str(tweet['user']['followers_count'])+','+str(tweet['user']['friends_count'])+','+tweet['user']['location']+','+tweet['user']['lang']+','+str(tweet['user']['geo_enabled'])+','+str(tweet['user']['favourites_count'])
-                    tw_file_users.write(line_users.encode('utf-8'))"""
+                        #No devuelve tweet si está vacío tras normalizar y eliminar stopwords
+                        #No se esta aplicando Hunspell
+                        if (content != "" ):
+                            for h in tweet['entities']['hashtags']:
+                                hashtags = hashtags + ' ' + h['text'].encode('ascii','ignore')
+                            if not hashtags:
+                                hashtags = ' '
+                            line = tweet['id']['$numberLong']+','+user_id + ',' + longitude + ',' + latitude + ',' + content + ','+ str(t_timestamp)+ ',' + str(tweet['retweet_count']) + ',' + hashtags + ','+dia+',' +hora+','+esdia+','+entresemana+','+'1,'+str(tweet['provincia'])+ ',\n'
+                            tw_file.write(line.encode('utf-8'))
+
+                        line_noText = tweet['id']['$numberLong']+','+user_id + ',' + longitude + ','  + latitude + ',' + str(t_timestamp)+ ',' + str(tweet['retweet_count'])+','+dia+','+hora+','+esdia+','+entresemana+','+ '1 \n'
+                        tw_file_no_text.write(line_noText)
+
+                        # Information about users is going to be taken care after
+                        """line_users = tweet['id']['$numberLong']+','+user_id + ','+str(tweet['user']['statuses_count'])+','+str(tweet['user']['followers_count'])+','+str(tweet['user']['friends_count'])+','+tweet['user']['location']+','+tweet['user']['lang']+','+str(tweet['user']['geo_enabled'])+','+str(tweet['user']['favourites_count'])
+                        tw_file_users.write(line_users.encode('utf-8'))"""
 
             except ValueError:
-                print line
+                pass
     tw_file.close()
 
 def normalization(text):
     text = text.lower()
     other = ''
-    hobj_spanish = hunspell.HunSpell('dic_spanish/Spanish.dic', 'dic_spanish/Spanish.aff')
+    # Hunspell not incluided
+    # hobj_spanish = hunspell.HunSpell('dic_spanish/Spanish.dic', 'dic_spanish/Spanish.aff')
     stemmer_english = SnowballStemmer("english")
     for element in text:
         other =other+remove_accents(element)
@@ -101,26 +102,8 @@ def normalization(text):
         word = deleteConsecutives(word)
         #Won't pass if word lenght is lower than 2
         if (len(re.findall('[a-zA-Z]', word))>2):
-            alt1 = word
-            alt2 = word
-            flag = False
-            if alt1 not in stopwords.words('english'):
-                alt1 = stemmer_english.stem(word)
-            else:
-                alt1 = ''
-            if alt2 not in stopwords.words('spanish'):
-                stem = hobj_spanish.stem(alt2)
-                if stem:
-                    alt2 = stem[0]
-                    flag = True
-            else:
-                alt2 = ''
-            #Won't pass if word is stopword on any lang
-            if (alt1!= '' and alt2 != ''):
-                if (flag):
-                    depured = depured + "&" + alt2
-                else:
-                    depured = depured + "&" + alt1
+            if word not in stopwords.words('spanish') and word not in stopwords.words('spanish'):
+                depured = depured + " " + word
     return depured
 
 def remove_accents(input_str):
@@ -170,6 +153,21 @@ def deleteConsecutives(word):
         return result
     else:
         return word
+
+def is_ven(tweet):
+    if 'country' in tweet:
+            if tweet['country'] == 'Venezuela':
+                return True
+            else:
+                return False
+    else:
+        return False
+
+def has_province(tweet):
+    if 'provincia' in tweet:
+        return True
+    else:
+        return False
 
 
 if __name__ == '__main__':

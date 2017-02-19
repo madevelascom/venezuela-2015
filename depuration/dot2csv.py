@@ -1,4 +1,5 @@
 uri = "Venezuela_cleaned_words.dot"
+tw_file = open('../re   sults/tweets_depurated.csv', 'w')
 archivo = open(uri,"r+")
 nodos = open("nodos.csv","a+")
 nodos.write("Id"+","+"Label"+","+"Weigth"+","+"cons"+","+"Size"+"\n")
